@@ -1,0 +1,124 @@
+# Project-specific phase completion documentation
+PHASE_*_COMPLETE.md
+
+# Go-related files
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.txt
+coverage.xml
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (Godeps, vendor, etc.)
+vendor/
+Godeps/
+
+# Go module cache
+go.sum.backup
+
+# Architecture specific extensions/prefixes
+*.[568vq]
+[568vq].out
+
+# cgo generated files
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+# Build artifacts
+bin/
+build/
+dist/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Profiling files
+*.prof
+*.pprof
+cpu.prof
+mem.prof
+block.prof
+mutex.prof
+
+# Benchmark results
+bench.out
+benchmarks/
+
+# Documentation build artifacts
+docs/_build/
+docs/site/
+
+# Development and testing artifacts
+debug
+debug.test
+*.test.out
+test-results/
+test-coverage/
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows specific
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux specific
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+requirements.md
+implementation_plan.md
