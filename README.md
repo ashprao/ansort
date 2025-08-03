@@ -96,6 +96,31 @@ ansort/
 
 This structure follows Go package conventions and provides clear separation of concerns between implementation, testing, documentation, and examples.
 
+## Verification and Testing
+
+Verify the package works correctly on your system:
+
+```bash
+# Run all tests and examples
+make all            # Run both tests and examples (recommended)
+
+# Individual verification
+make test           # Run all tests with coverage
+make examples       # Run all examples 
+
+# Development workflow
+make verify         # Comprehensive verification (fmt + vet + test + examples)
+make help           # Show all available targets
+```
+
+Or run individual examples:
+```bash
+go run examples/basic/main.go
+go run examples/external_sort_key/main.go
+go run examples/batch_processing/main.go
+go run examples/validation/main.go
+```
+
 ## Usage Guide
 
 The package provides functionality for two distinct use cases at opposite ends of a data pipeline:
@@ -164,12 +189,18 @@ Use these functions when you need to store naturally-sortable data in external s
 
 ### When to Use External Sort Keys
 
-**Use `ToNaturalSortKey`** when:
+**Use external sort keys** when:
 - Storing data in databases with lexicographic sorting constraints
 - Indexing data in search engines like Elasticsearch
 - Working with systems that don't support custom sorting logic
 - You need consistent natural ordering across different systems
 - Pre-computing sort keys for performance optimization
+
+**Use batch processing** (`ToNaturalSortKeys`) when:
+- Processing multiple items with the same configuration (reduces overhead)
+- Importing large datasets into external systems
+- Performance-critical applications with many sort key generations
+- Memory-efficient processing with pre-allocated result slices
 
 ### External Sort Key Generation
 
@@ -183,34 +214,35 @@ sortKey := ansort.ToNaturalSortKey("file10.txt")
 // Custom padding length and case-insensitive keys
 sortKey2 := ansort.ToNaturalSortKey("Item5", ansort.WithMaxNumericLength(5), ansort.WithExternalCaseInsensitive())
 // Result: "item00005" (lowercase with 5-digit padding)
+
+// Batch processing for multiple inputs (Performance optimized)
+data := []string{"file10.txt", "file2.txt", "file1.txt", "file20.txt"}
+sortKeys := ansort.ToNaturalSortKeys(data, ansort.WithMaxNumericLength(5))
+// Result: ["file00010.txt", "file00002.txt", "file00001.txt", "file00020.txt"]
+
+// Batch processing with validation
+sortKeys, err := ansort.ToNaturalSortKeysValidated(data, ansort.WithMaxNumericLength(5))
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### Typical External Integration Workflow
 
 ```go
-// 1. Generate sort keys for your data
+// Generate sort keys efficiently using batch processing
 data := []string{"file10.txt", "file2.txt", "file1.txt"}
-var records []struct {
-    Original string
-    SortKey  string
+sortKeys := ansort.ToNaturalSortKeys(data) // Single config build, optimized processing
+
+// Store both original and sort key in external system
+for i, item := range data {
+    // Insert into database/search engine with both values
+    // External system sorts by sortKeys[i] lexicographically,
+    // maintaining natural order of original item values
 }
 
-for _, item := range data {
-    records = append(records, struct {
-        Original string
-        SortKey  string
-    }{
-        Original: item,
-        SortKey:  ansort.ToNaturalSortKey(item),
-    })
-}
-
-// 2. Store in external system (database, search engine, etc.)
-// The external system will sort by SortKey lexicographically,
-// which will maintain natural ordering of the Original values
-
-// 3. Query results from external system ordered by SortKey
-// The returned Original values will be in natural alphanumeric order
+// Query results from external system ordered by sort key
+// Returns original values in natural alphanumeric order
 ```
 
 ---
@@ -291,6 +323,8 @@ for i := 0; i < 1000; i++ {
 
 - `ToNaturalSortKey(input string, options ...ExternalSortKeyOption) string` - Generates lexicographically sortable keys for external systems (databases, Elasticsearch, etc.)
 - `ToNaturalSortKeyValidated(input string, options ...ExternalSortKeyOption) (string, error)` - Generates keys with comprehensive validation and error reporting
+- `ToNaturalSortKeys(inputs []string, options ...ExternalSortKeyOption) []string` - Batch processing for multiple inputs with performance optimization
+- `ToNaturalSortKeysValidated(inputs []string, options ...ExternalSortKeyOption) ([]string, error)` - Batch processing with comprehensive validation
 
 ### Functional Options (Direct Sorting)
 
@@ -332,6 +366,7 @@ The package provides "validated" variants of core functions that perform compreh
 - `NewSorterValidated(data []string, options ...Option) (*AlphanumericSorter, error)` - Creates sorter with validation
 - `CompareValidated(a, b string, options ...Option) (int, error)` - Compares with validation
 - `ToNaturalSortKeyValidated(input string, options ...ExternalSortKeyOption) (string, error)` - Generates external sort keys with validation
+- `ToNaturalSortKeysValidated(inputs []string, options ...ExternalSortKeyOption) ([]string, error)` - Batch generates external sort keys with validation
 
 #### Error Types
 
@@ -365,30 +400,16 @@ func ProcessUserData(userInput []string) error {
 }
 
 func GenerateExternalSortKeys(userInput []string, paddingLength int) ([]string, error) {
-    var sortKeys []string
-    
-    for _, item := range userInput {
-        // Use validated function for external sort keys
-        key, err := ansort.ToNaturalSortKeyValidated(item, 
-            ansort.WithMaxNumericLength(paddingLength))
-        if err != nil {
-            return nil, fmt.Errorf("failed to generate sort key for %q: %w", item, err)
-        }
-        sortKeys = append(sortKeys, key)
-    }
-    
-    return sortKeys, nil
+    // Use batch processing for efficiency and error handling
+    return ansort.ToNaturalSortKeysValidated(userInput, 
+        ansort.WithMaxNumericLength(paddingLength))
 }
 
-// For trusted internal data, use convenience functions
+// For trusted internal data, use convenience functions  
 func ProcessInternalData(data []string) {
     ansort.SortStrings(data) // No error handling needed
-    
-    // Generate keys for internal processing
-    for _, item := range data {
-        key := ansort.ToNaturalSortKey(item) // No validation overhead
-        // ... process key
-    }
+    keys := ansort.ToNaturalSortKeys(data) // Batch processing for efficiency
+    // ... process keys
 }
 ```
 
@@ -415,36 +436,29 @@ func ProcessInternalData(data []string) {
 ## Examples
 
 See the `examples/` directory for comprehensive usage examples:
-- `examples/basic/` - Basic natural sorting functionality including multi-segment and decimal number examples
-- `examples/external_sort_key/` - External system integration with sort key generation for databases and search engines
-- `examples/validation/` - Comprehensive validation function examples with error handling
-
-Run the examples:
-```bash
-go run examples/basic/main.go
-go run examples/external_sort_key/main.go
-go run examples/validation/main.go
-```
+- `examples/basic/` - Basic natural sorting functionality
+- `examples/external_sort_key/` - External system integration with sort key generation
+- `examples/batch_processing/` - Batch processing optimization for multiple items
+- `examples/validation/` - Validation functions with error handling
 
 ## Current Status
 
-This package is currently at **v0.1.0** - a stable MVP with comprehensive natural sorting features.
+This package is currently at **v0.2.0** - a stable release with comprehensive natural sorting and batch processing features.
 
-### ✅ Implemented Features (v0.1.0)
-- **Core natural sorting**: Basic alphanumeric parsing and comparison
+### ✅ Implemented Features (v0.2.0)
+- **Core natural sorting**: Alphanumeric parsing and intelligent comparison
 - **Case sensitivity options**: Case-sensitive/insensitive modes with functional options
-- **Multi-segment number support**: Semantic versioning (`v1.2.10`), IP addresses, complex patterns
-- **Decimal number support**: Real decimals (`3.14`), prices (`$19.99`), mixed patterns
+- **Multi-segment number support**: Semantic versioning, IP addresses, complex patterns
 - **Leading zero handling**: Proper numeric comparison with preserved formatting
 - **Standard library integration**: Full `sort.Interface` implementation
 - **External system integration**: Generate lexicographically sortable keys for external systems
-- **Comprehensive error handling**: Input validation and graceful error handling
-- **High test coverage**: 90%+ coverage with comprehensive test suite
+- **Batch processing**: Optimized performance for processing multiple items efficiently
+- **Comprehensive validation**: Input validation with detailed error reporting
+- **High test coverage**: 95%+ coverage with comprehensive test suite
 
 ### 🔄 Future Versions
-- **v0.2.0**: Batch processing for external sort keys and optimization (Phase 4.2)
-- **v0.3.0**: Unicode and special character support (Phase 3.3)
-- **v0.4.0**: Performance optimizations and API polish (Phase 5)
+- **v0.3.0**: Unicode and special character support
+- **v0.4.0**: Performance optimizations and API polish
 - **v1.0.0**: Stable API guarantee after community feedback
 
 ### 📦 Version Compatibility

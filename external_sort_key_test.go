@@ -2,6 +2,7 @@ package ansort
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 )
@@ -310,6 +311,292 @@ func TestToNaturalSortKeyValidated(t *testing.T) {
 
 		if validated != nonValidated {
 			t.Errorf("Results should be identical: validated=%q, non-validated=%q", validated, nonValidated)
+		}
+	})
+}
+
+// TestToNaturalSortKeys tests the batch processing functionality
+func TestToNaturalSortKeys(t *testing.T) {
+	t.Run("nil input", func(t *testing.T) {
+		result := ToNaturalSortKeys(nil)
+		if result != nil {
+			t.Errorf("Expected nil result for nil input, got %v", result)
+		}
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		result := ToNaturalSortKeys([]string{})
+		if result == nil {
+			t.Error("Expected empty slice, got nil")
+		}
+		if len(result) != 0 {
+			t.Errorf("Expected empty slice, got length %d", len(result))
+		}
+	})
+
+	t.Run("single item", func(t *testing.T) {
+		input := []string{"file10.txt"}
+		result := ToNaturalSortKeys(input)
+		expected := []string{"file0000000010.txt"}
+
+		if len(result) != len(expected) {
+			t.Errorf("Expected length %d, got %d", len(expected), len(result))
+		}
+		if result[0] != expected[0] {
+			t.Errorf("Expected %q, got %q", expected[0], result[0])
+		}
+	})
+
+	t.Run("multiple items", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt", "file1.txt", "file20.txt"}
+		result := ToNaturalSortKeys(input)
+		expected := []string{"file0000000010.txt", "file0000000002.txt", "file0000000001.txt", "file0000000020.txt"}
+
+		if len(result) != len(expected) {
+			t.Errorf("Expected length %d, got %d", len(expected), len(result))
+			return
+		}
+
+		for i, exp := range expected {
+			if result[i] != exp {
+				t.Errorf("Index %d: expected %q, got %q", i, exp, result[i])
+			}
+		}
+	})
+
+	t.Run("with options", func(t *testing.T) {
+		input := []string{"File10.TXT", "file2.txt", "FILE1.txt"}
+		result := ToNaturalSortKeys(input, WithMaxNumericLength(3), WithExternalCaseInsensitive())
+		expected := []string{"file010.txt", "file002.txt", "file001.txt"}
+
+		if len(result) != len(expected) {
+			t.Errorf("Expected length %d, got %d", len(expected), len(result))
+			return
+		}
+
+		for i, exp := range expected {
+			if result[i] != exp {
+				t.Errorf("Index %d: expected %q, got %q", i, exp, result[i])
+			}
+		}
+	})
+
+	t.Run("empty strings in input", func(t *testing.T) {
+		input := []string{"file1.txt", "", "file2.txt"}
+		result := ToNaturalSortKeys(input)
+		expected := []string{"file0000000001.txt", "", "file0000000002.txt"}
+
+		if len(result) != len(expected) {
+			t.Errorf("Expected length %d, got %d", len(expected), len(result))
+			return
+		}
+
+		for i, exp := range expected {
+			if result[i] != exp {
+				t.Errorf("Index %d: expected %q, got %q", i, exp, result[i])
+			}
+		}
+	})
+
+	t.Run("consistency with single function", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt", "file1.txt"}
+		options := []ExternalSortKeyOption{WithMaxNumericLength(5), WithExternalCaseInsensitive()}
+
+		// Batch processing
+		batchResult := ToNaturalSortKeys(input, options...)
+
+		// Individual processing
+		var individualResult []string
+		for _, item := range input {
+			individualResult = append(individualResult, ToNaturalSortKey(item, options...))
+		}
+
+		if len(batchResult) != len(individualResult) {
+			t.Errorf("Length mismatch: batch=%d, individual=%d", len(batchResult), len(individualResult))
+			return
+		}
+
+		for i, batchItem := range batchResult {
+			if batchItem != individualResult[i] {
+				t.Errorf("Index %d: batch=%q, individual=%q", i, batchItem, individualResult[i])
+			}
+		}
+	})
+}
+
+// TestToNaturalSortKeysValidated tests the validated batch processing functionality
+func TestToNaturalSortKeysValidated(t *testing.T) {
+	t.Run("nil input validation", func(t *testing.T) {
+		_, err := ToNaturalSortKeysValidated(nil)
+		if err == nil {
+			t.Error("Expected error for nil input, got nil")
+		}
+
+		var validationErr *ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Errorf("Expected ValidationError, got %T", err)
+		} else if validationErr.Field != "data" {
+			t.Errorf("Expected error field 'data', got %q", validationErr.Field)
+		}
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		result, err := ToNaturalSortKeysValidated([]string{})
+		if err != nil {
+			t.Errorf("Expected no error for empty input, got %v", err)
+		}
+		if result == nil {
+			t.Error("Expected empty slice, got nil")
+		}
+		if len(result) != 0 {
+			t.Errorf("Expected empty slice, got length %d", len(result))
+		}
+	})
+
+	t.Run("valid configuration", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt", "file1.txt"}
+		result, err := ToNaturalSortKeysValidated(input, WithMaxNumericLength(5))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		expected := []string{"file00010.txt", "file00002.txt", "file00001.txt"}
+
+		if len(result) != len(expected) {
+			t.Errorf("Expected length %d, got %d", len(expected), len(result))
+			return
+		}
+
+		for i, exp := range expected {
+			if result[i] != exp {
+				t.Errorf("Index %d: expected %q, got %q", i, exp, result[i])
+			}
+		}
+	})
+
+	t.Run("invalid configuration - zero padding", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt"}
+		_, err := ToNaturalSortKeysValidated(input, WithMaxNumericLength(0))
+		if err == nil {
+			t.Error("Expected error for zero padding length, got nil")
+		}
+
+		var validationErr *ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Errorf("Expected ValidationError, got %T", err)
+		} else if validationErr.Field != "MaxNumericLength" {
+			t.Errorf("Expected error field 'MaxNumericLength', got %q", validationErr.Field)
+		}
+	})
+
+	t.Run("invalid configuration - excessive padding", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt"}
+		_, err := ToNaturalSortKeysValidated(input, WithMaxNumericLength(100))
+		if err == nil {
+			t.Error("Expected error for excessive padding length, got nil")
+		}
+
+		var validationErr *ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Errorf("Expected ValidationError, got %T", err)
+		} else if validationErr.Field != "MaxNumericLength" {
+			t.Errorf("Expected error field 'MaxNumericLength', got %q", validationErr.Field)
+		}
+	})
+
+	t.Run("consistency with single validated function", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt", "file1.txt"}
+		options := []ExternalSortKeyOption{WithMaxNumericLength(5), WithExternalCaseInsensitive()}
+
+		// Batch processing
+		batchResult, err := ToNaturalSortKeysValidated(input, options...)
+		if err != nil {
+			t.Errorf("Batch processing failed: %v", err)
+		}
+
+		// Individual processing
+		var individualResult []string
+		for _, item := range input {
+			individual, err := ToNaturalSortKeyValidated(item, options...)
+			if err != nil {
+				t.Errorf("Individual processing failed for %q: %v", item, err)
+			}
+			individualResult = append(individualResult, individual)
+		}
+
+		if len(batchResult) != len(individualResult) {
+			t.Errorf("Length mismatch: batch=%d, individual=%d", len(batchResult), len(individualResult))
+			return
+		}
+
+		for i, batchItem := range batchResult {
+			if batchItem != individualResult[i] {
+				t.Errorf("Index %d: batch=%q, individual=%q", i, batchItem, individualResult[i])
+			}
+		}
+	})
+
+	t.Run("consistency with non-validated batch function", func(t *testing.T) {
+		input := []string{"file10.txt", "file2.txt", "file1.txt"}
+		options := []ExternalSortKeyOption{WithMaxNumericLength(5), WithExternalCaseInsensitive()}
+
+		// Validated batch processing
+		validatedResult, err := ToNaturalSortKeysValidated(input, options...)
+		if err != nil {
+			t.Errorf("Validated batch processing failed: %v", err)
+		}
+
+		// Non-validated batch processing
+		nonValidatedResult := ToNaturalSortKeys(input, options...)
+
+		if len(validatedResult) != len(nonValidatedResult) {
+			t.Errorf("Length mismatch: validated=%d, non-validated=%d", len(validatedResult), len(nonValidatedResult))
+			return
+		}
+
+		for i, validatedItem := range validatedResult {
+			if validatedItem != nonValidatedResult[i] {
+				t.Errorf("Index %d: validated=%q, non-validated=%q", i, validatedItem, nonValidatedResult[i])
+			}
+		}
+	})
+}
+
+// TestBatchProcessingPerformance tests the performance characteristics of batch processing
+func TestBatchProcessingPerformance(t *testing.T) {
+	// Generate a reasonable-sized test dataset
+	input := make([]string, 1000)
+	for i := 0; i < 1000; i++ {
+		input[i] = fmt.Sprintf("file%d.txt", i)
+	}
+
+	t.Run("batch processing correctness", func(t *testing.T) {
+		result := ToNaturalSortKeys(input)
+		if len(result) != len(input) {
+			t.Errorf("Expected length %d, got %d", len(input), len(result))
+		}
+
+		// Verify that the results are consistent
+		for i, original := range input {
+			expected := ToNaturalSortKey(original)
+			if result[i] != expected {
+				t.Errorf("Index %d: expected %q, got %q", i, expected, result[i])
+				break // Don't spam the output
+			}
+		}
+	})
+
+	t.Run("order preservation", func(t *testing.T) {
+		// Test that batch processing preserves input order
+		testInput := []string{"file10.txt", "file2.txt", "file1.txt", "file20.txt"}
+		result := ToNaturalSortKeys(testInput)
+
+		// The output should be in the same order as input (not sorted)
+		expected := []string{"file0000000010.txt", "file0000000002.txt", "file0000000001.txt", "file0000000020.txt"}
+
+		for i, exp := range expected {
+			if result[i] != exp {
+				t.Errorf("Order not preserved. Index %d: expected %q, got %q", i, exp, result[i])
+			}
 		}
 	})
 }

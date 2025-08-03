@@ -642,28 +642,8 @@ func ToNaturalSortKey(input string, options ...ExternalSortKeyOption) string {
 	// Note: For backward compatibility, this function doesn't validate configuration.
 	// Use ToNaturalSortKeyValidated for strict validation with error reporting.
 
-	// Tokenize the input string using existing parseString function
-	tokens := parseString(input)
-
-	// Build the sort key by processing each token
-	var result strings.Builder
-
-	for _, token := range tokens {
-		if token.Type == NumericToken {
-			// Pad numeric tokens with leading zeros
-			paddedNumber := padNumericToken(token.Value, config.MaxNumericLength)
-			result.WriteString(paddedNumber)
-		} else {
-			// Handle alphabetic tokens based on case sensitivity
-			alphaValue := token.Value
-			if !config.CaseSensitive {
-				alphaValue = strings.ToLower(alphaValue)
-			}
-			result.WriteString(alphaValue)
-		}
-	}
-
-	return result.String()
+	// Use shared helper function for consistent implementation
+	return generateSortKeyWithConfig(input, config)
 }
 
 // ToNaturalSortKeyValidated generates a lexicographically sortable string with comprehensive validation.
@@ -690,11 +670,127 @@ func ToNaturalSortKeyValidated(input string, options ...ExternalSortKeyOption) (
 		return "", err
 	}
 
+	// Use shared helper function for consistent implementation
+	return generateSortKeyWithConfig(input, config), nil
+}
+
+// ToNaturalSortKeys generates lexicographically sortable strings for multiple inputs efficiently.
+// This batch processing function is optimized for performance when processing many strings
+// with the same configuration options.
+//
+// The function processes all inputs with the same configuration, reducing overhead
+// compared to calling ToNaturalSortKey multiple times. Order is preserved in the results.
+//
+// For nil input slice, returns nil. For empty input slice, returns empty slice.
+// Use ToNaturalSortKeysValidated for strict validation with error reporting.
+//
+// Example:
+//
+//	inputs := []string{"file10.txt", "file2.txt", "file1.txt"}
+//	sortKeys := ansort.ToNaturalSortKeys(inputs, ansort.WithMaxNumericLength(5))
+//	// Result: ["file00010.txt", "file00002.txt", "file00001.txt"]
+//
+//	// External system integration workflow:
+//	// 1. Generate batch keys for all data at once
+//	// 2. Store all keys efficiently in external system
+//	// 3. Query results maintain natural order when sorted by keys
+func ToNaturalSortKeys(inputs []string, options ...ExternalSortKeyOption) []string {
+	if inputs == nil {
+		return nil
+	}
+
+	if len(inputs) == 0 {
+		return []string{}
+	}
+
+	// Build configuration once for all inputs (performance optimization)
+	config := buildExternalSortKeyConfig(options...)
+
+	// Pre-allocate result slice with exact capacity (memory optimization)
+	results := make([]string, len(inputs))
+
+	// Process each input with the shared configuration
+	for i, input := range inputs {
+		if input == "" {
+			results[i] = ""
+			continue
+		}
+
+		// Reuse existing tokenization and processing logic
+		results[i] = generateSortKeyWithConfig(input, config)
+	}
+
+	return results
+}
+
+// ToNaturalSortKeysValidated generates lexicographically sortable strings for multiple inputs
+// with comprehensive validation. Unlike ToNaturalSortKeys, this function returns an error
+// if validation fails, making it suitable for cases where you need strict input validation.
+//
+// Returns an error if the input slice is nil or if configuration validation fails.
+// Order is preserved in the results.
+//
+// Example:
+//
+//	inputs := []string{"file10.txt", "file2.txt", "file1.txt"}
+//	sortKeys, err := ansort.ToNaturalSortKeysValidated(inputs,
+//		ansort.WithMaxNumericLength(100))
+//	if err != nil {
+//		log.Fatal(err) // Will fail due to excessive padding length
+//	}
+func ToNaturalSortKeysValidated(inputs []string, options ...ExternalSortKeyOption) ([]string, error) {
+	if err := validateSlice(inputs, "ToNaturalSortKeysValidated"); err != nil {
+		return nil, err
+	}
+
+	if len(inputs) == 0 {
+		return []string{}, nil
+	}
+
+	// Build and validate configuration once for all inputs (performance optimization)
+	config := buildExternalSortKeyConfig(options...)
+	if err := validateExternalSortKeyConfig(config); err != nil {
+		return nil, err
+	}
+
+	// Pre-allocate result slice with exact capacity (memory optimization)
+	results := make([]string, len(inputs))
+
+	// Process each input with the validated shared configuration
+	for i, input := range inputs {
+		if input == "" {
+			results[i] = ""
+			continue
+		}
+
+		// Reuse existing tokenization and processing logic
+		results[i] = generateSortKeyWithConfig(input, config)
+	}
+
+	return results, nil
+}
+
+// generateSortKeyWithConfig is an internal helper function that generates a sort key
+// for a given input using a pre-built configuration. This function centralizes the
+// core sort key generation logic to avoid code duplication between single and batch functions.
+//
+// This function assumes the input is non-empty and the config is valid.
+func generateSortKeyWithConfig(input string, config ExternalSortKeyConfig) string {
 	// Tokenize the input string using existing parseString function
 	tokens := parseString(input)
 
-	// Build the sort key by processing each token
+	// Estimate result size for better memory allocation
+	// Average estimation: input length + (number of numeric tokens * padding overhead)
+	estimatedSize := len(input)
+	for _, token := range tokens {
+		if token.Type == NumericToken && len(token.Value) < config.MaxNumericLength {
+			estimatedSize += config.MaxNumericLength - len(token.Value)
+		}
+	}
+
+	// Build the sort key by processing each token with pre-allocated builder
 	var result strings.Builder
+	result.Grow(estimatedSize) // Pre-allocate for performance
 
 	for _, token := range tokens {
 		if token.Type == NumericToken {
@@ -711,7 +807,7 @@ func ToNaturalSortKeyValidated(input string, options ...ExternalSortKeyOption) (
 		}
 	}
 
-	return result.String(), nil
+	return result.String()
 }
 
 // padNumericToken pads a numeric string with leading zeros to the specified length
