@@ -32,6 +32,11 @@ help:
 	@echo "  make clean       - Clean build artifacts and temporary files"
 	@echo "  make verify      - Run comprehensive verification (fmt + vet + test + examples)"
 	@echo "  make help        - Show this help message"
+	@echo ""
+	@echo "$(GREEN)Benchmarks:$(RESET)"
+	@echo "  make bench       - Run all tests and benchmarks"
+	@echo "  make benchmarks  - Run only benchmark tests (no regular tests)"
+	@echo "  make bench-performance - Run performance benchmarks with extended timing"
 
 # Run all tests with verbose output and coverage
 test:
@@ -133,7 +138,17 @@ build:
 # Run benchmarks if any exist
 bench:
 	@echo "$(BLUE)Running benchmarks...$(RESET)"
-	@go test -bench=. ./...
+	@go test -bench=. -benchmem ./...
+
+# Run only benchmark tests (no regular tests)
+benchmarks:
+	@echo "$(BLUE)Running only benchmark tests...$(RESET)"
+	@go test -run=^$$ -bench=. -benchmem ./...
+
+# Run performance benchmarks with more iterations
+bench-performance:
+	@echo "$(BLUE)Running performance benchmarks (extended)...$(RESET)"
+	@go test -run=^$$ -bench=. -benchmem -benchtime=5s ./...
 
 # Show test coverage in browser
 coverage: test

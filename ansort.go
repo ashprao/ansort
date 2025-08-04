@@ -324,39 +324,8 @@ func (s AlphanumericSorter) Less(i, j int) bool {
 //	result := ansort.Compare("File1.txt", "file1.txt", ansort.WithCaseInsensitive())
 //	// Returns: 0 (equivalent when case-insensitive)
 func Compare(a, b string, options ...Option) int {
-	// Handle identical strings quickly
-	if a == b {
-		return 0
-	}
-
-	// Build configuration from options
-	config := buildConfig(options...)
-
-	// Tokenize both strings
-	tokensA := parseString(a)
-	tokensB := parseString(b)
-
-	// Compare token by token
-	minLen := len(tokensA)
-	if len(tokensB) < minLen {
-		minLen = len(tokensB)
-	}
-
-	for i := 0; i < minLen; i++ {
-		result := compareTokensWithConfig(tokensA[i], tokensB[i], config)
-		if result != 0 {
-			return result
-		}
-	}
-
-	// If all compared tokens are equal, the shorter string comes first
-	if len(tokensA) < len(tokensB) {
-		return -1
-	} else if len(tokensA) > len(tokensB) {
-		return 1
-	}
-
-	return 0
+	// Use optimized implementation with caching for best performance
+	return CompareOptimized(a, b, options...)
 }
 
 // CompareValidated compares two strings using natural alphanumeric sorting rules
@@ -433,17 +402,8 @@ func CompareValidated(a, b string, options ...Option) (int, error) {
 //	ansort.SortStrings(data2, ansort.WithCaseInsensitive())
 //	// data2 is now sorted case-insensitively
 func SortStrings(data []string, options ...Option) {
-	if data == nil {
-		return
-	}
-	config := buildConfig(options...)
-	if err := validateConfig(config); err != nil {
-		// Log or handle config error gracefully - for backward compatibility,
-		// we don't return errors from this function
-		return
-	}
-	sorter := AlphanumericSorter{data: data, config: config}
-	sort.Sort(sorter)
+	// Use optimized implementation with caching for best performance
+	SortStringsOptimized(data, options...)
 }
 
 // SortStringsValidated sorts a slice of strings using natural alphanumeric ordering
@@ -820,4 +780,111 @@ func padNumericToken(numStr string, maxLength int) string {
 
 	// Pad with leading zeros
 	return fmt.Sprintf("%0*s", maxLength, numStr)
+}
+
+// CompareLegacy provides the original comparison implementation without optimizations.
+// Use this if you need the exact behavior of the original implementation or want to
+// avoid caching overhead for one-time comparisons.
+func CompareLegacy(a, b string, options ...Option) int {
+	// Handle identical strings quickly
+	if a == b {
+		return 0
+	}
+
+	// Build configuration from options
+	config := buildConfig(options...)
+
+	// Tokenize both strings
+	tokensA := parseString(a)
+	tokensB := parseString(b)
+
+	// Compare token by token
+	minLen := len(tokensA)
+	if len(tokensB) < minLen {
+		minLen = len(tokensB)
+	}
+
+	for i := 0; i < minLen; i++ {
+		result := compareTokensWithConfig(tokensA[i], tokensB[i], config)
+		if result != 0 {
+			return result
+		}
+	}
+
+	// If all compared tokens are equal, the shorter string comes first
+	if len(tokensA) < len(tokensB) {
+		return -1
+	} else if len(tokensA) > len(tokensB) {
+		return 1
+	}
+
+	return 0
+}
+
+// SortStringsLegacy provides the original sorting implementation without optimizations.
+// Use this if you need the exact behavior of the original implementation or want to
+// avoid caching overhead for one-time sorts.
+func SortStringsLegacy(data []string, options ...Option) {
+	if data == nil {
+		return
+	}
+	config := buildConfig(options...)
+	if err := validateConfig(config); err != nil {
+		// Log or handle config error gracefully - for backward compatibility,
+		// we don't return errors from this function
+		return
+	}
+	sorter := AlphanumericSorter{data: data, config: config}
+	sort.Sort(sorter)
+}
+
+// WithCacheSize configures the cache size for optimized operations.
+// This function reconfigures the global token cache used by Compare() and SortStrings().
+// Default cache size is 2000 entries.
+//
+// Example:
+//
+//	// Increase cache size for applications with many unique strings
+//	ansort.ConfigureCacheSize(10000)
+//
+//	// Reduce cache size for memory-constrained environments
+//	ansort.ConfigureCacheSize(500)
+func ConfigureCacheSize(size int) {
+	globalCache = NewTokenCache(size)
+}
+
+// DisableCache disables caching for all optimized operations,
+// falling back to the legacy implementation. Use this for memory-constrained
+// environments or when you need deterministic memory usage.
+//
+// Example:
+//
+//	// Disable caching globally
+//	ansort.DisableCache()
+func DisableCache() {
+	globalCacheDisabled = true
+}
+
+// EnableCache re-enables caching for optimized operations.
+// This restores the default behavior after calling DisableCache().
+//
+// Example:
+//
+//	// Re-enable caching
+//	ansort.EnableCache()
+func EnableCache() {
+	globalCacheDisabled = false
+}
+
+// Internal flag to track if caching is disabled
+var globalCacheDisabled = false
+
+// CompareWithoutCache provides comparison without any caching overhead
+func CompareWithoutCache(a, b string, options ...Option) int {
+	return CompareLegacy(a, b, options...)
+}
+
+// SortStringsWithoutCache provides sorting without any caching overhead
+func SortStringsWithoutCache(data []string, options ...Option) {
+	SortStringsLegacy(data, options...)
 }
