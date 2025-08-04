@@ -444,9 +444,9 @@ See the `examples/` directory for comprehensive usage examples:
 
 ## Current Status
 
-This package is currently at **v0.2.0** - a stable release with comprehensive natural sorting and batch processing features.
+This package is currently at **v0.3.0** - a performance-optimized release with intelligent caching and memory pooling.
 
-### ✅ Implemented Features (v0.2.0)
+### ✅ Implemented Features (v0.3.0)
 - **Core natural sorting**: Alphanumeric parsing and intelligent comparison
 - **Case sensitivity options**: Case-sensitive/insensitive modes with functional options
 - **Multi-segment number support**: Semantic versioning, IP addresses, complex patterns
@@ -455,22 +455,17 @@ This package is currently at **v0.2.0** - a stable release with comprehensive na
 - **External system integration**: Generate lexicographically sortable keys for external systems
 - **Batch processing**: Optimized performance for processing multiple items efficiently
 - **Comprehensive validation**: Input validation with detailed error reporting
+- **Performance optimizations**: Intelligent caching and memory pooling for 3.4x performance improvement
 - **High test coverage**: 95%+ coverage with comprehensive test suite
 
 ### 🔄 Future Versions
-- **v0.3.0**: Unicode and special character support
-- **v0.4.0**: Performance optimizations and API polish
+- **v0.4.0**: Unicode and special character support
+- **v0.5.0**: Advanced API features and additional utilities
 - **v1.0.0**: Stable API guarantee after community feedback
 
 ### 📦 Version Compatibility
 - **Pre-v1.0.0**: API may evolve based on feedback
 - **Post-v1.0.0**: Semantic versioning with backward compatibility guarantees
-
-### Key Discovery
-The natural tokenization approach handles complex patterns automatically without special cases:
-- Multi-segment numbers work through token-by-token comparison
-- Decimal numbers sort correctly via natural numeric token handling
-- Version strings, IP addresses, and mixed patterns all work seamlessly
 
 ## License
 
